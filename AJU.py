@@ -19,7 +19,7 @@ IS_ON_RENDER = os.environ.get('RENDER') == 'true'
 PASTA_SEGURA = DIRETORIO_ATUAL if IS_ON_RENDER else Path.home() / "Documents"
 TOKEN_FILE = PASTA_SEGURA / 'token.json'
 
-DRIVE_FOLDER_ID = "1O5sLCfgQ4pC42KgldkuRJRpZH8nQuSgK" # <-- VERIFIQUE SE ESTE É O ID DA PASTA CORRETA
+DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE SE ESTE É O ID DA PASTA CORRETA
 SPREADSHEET_ID = "1F7J2HTY-1PefF9UTajvQbq8jgAdEc1vrU0TeR3np8cI"
 SHEET_NAME = "Base"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
