@@ -1,8 +1,9 @@
-# AJU.py - Versão Final Otimizada com Upload Direto e Lógica de Retentativa
+# AJU.py - Versão Final Otimizada e Corrigida
 import logging
 import io
 import os
 import time
+import json
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -15,11 +16,21 @@ from pathlib import Path
 # CONFIGURAÇÕES GERAIS
 # ====================================================================
 DIRETORIO_ATUAL = Path(__file__).parent
-TOKEN_FILE = DIRETORIO_ATUAL / 'token.json'
-CREDENTIALS_FILE = DIRETORIO_ATUAL / 'credentials.json'
+
+# Lógica inteligente para encontrar as credenciais, funcionando localmente e no Render
+IS_ON_RENDER = os.environ.get('RENDER') == 'true'
+if IS_ON_RENDER:
+    # No Render, os arquivos secretos (Secret Files) ficam no diretório principal do projeto
+    PASTA_SEGURA = DIRETORIO_ATUAL
+else:
+    # Localmente, usamos a pasta 'Documentos' para evitar problemas de permissão
+    PASTA_SEGURA = Path.home() / "Documents"
+
+TOKEN_FILE = PASTA_SEGURA / 'token.json'
+CREDENTIALS_FILE = PASTA_SEGURA / 'credentials.json' # Usado apenas para gerar o token localmente
 
 # ATENÇÃO: Verifique se este ID é de uma pasta dentro do "Meu Drive" da conta 'prevperdassheets@gmail.com'
-DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE SE ESTE É O ID DA PASTA CORRETA
+DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE ESTE ID
 SPREADSHEET_ID = "1F7J2HTY-1PefF9UTajvQbq8jgAdEc1vrU0TeR3np8cI"
 SHEET_NAME = "Base"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -40,10 +51,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app = Flask(__name__, template_folder=DIRETORIO_ATUAL)
 CORS(app)
 
+creds = None
 try:
     if not os.path.exists(TOKEN_FILE):
-        raise FileNotFoundError(f"ERRO: 'token.json' não encontrado em '{TOKEN_FILE}'. Execute o script 'gerar_token_manual.py' primeiro.")
-
+        raise FileNotFoundError(f"ERRO: 'token.json' não encontrado em '{PASTA_SEGURA}'. Execute o script 'gerar_token_manual.py' primeiro.")
     creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
     gspread_client = gspread.authorize(creds)
     drive_service = build('drive', 'v3', credentials=creds)
@@ -75,7 +86,6 @@ def _get_drive_link_by_filename(file_name):
             
             logging.warning(f"Tentativa {attempt + 1}: Arquivo '{file_name}' ainda não visível. Aguardando 2 segundos...")
             time.sleep(2)
-
         except Exception as e:
             logging.error(f"Erro ao buscar link do arquivo '{file_name}' na tentativa {attempt + 1}: {e}")
             time.sleep(2)
@@ -89,6 +99,7 @@ def index():
 
 @app.route('/generate_upload_url', methods=['POST'])
 def generate_upload_url():
+    """Gera um link de upload resumível e temporário do Google Drive. (Versão robusta)"""
     try:
         data = request.get_json()
         file_name = data.get('fileName')
@@ -103,14 +114,14 @@ def generate_upload_url():
         headers = {
             "Authorization": f"Bearer {creds.token}",
             "Content-Type": "application/json; charset=UTF-8",
-            "X-Upload-Content-Type": mime_type
+            "X-Upload-Content-Type": mime_type,
         }
         
         http = build_http()
         resp, content = http.request(
             uri=f"https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable",
             method='POST',
-            body=str(file_metadata).replace("'", '"'),
+            body=json.dumps(file_metadata),
             headers=headers
         )
 
@@ -119,7 +130,8 @@ def generate_upload_url():
             logging.info(f"URL de upload gerada para: {file_name}")
             return jsonify({'uploadUrl': upload_url})
         else:
-            raise Exception("Não foi possível obter a URL de upload do Google Drive.")
+            logging.error(f"Resposta inesperada do Google ao gerar URL: {resp}")
+            raise Exception("Não foi possível obter a URL de upload do Google Drive (cabeçalho 'location' ausente).")
     except Exception as e:
         logging.error(f"Erro ao gerar URL de upload: {e}")
         return jsonify({'erro': str(e)}), 500
