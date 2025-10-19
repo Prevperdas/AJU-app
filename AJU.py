@@ -1,14 +1,14 @@
-# AJU.py - Versão Final Otimizada com Upload Direto
+# AJU.py - Versão Final Otimizada com Upload Direto e Lógica de Retentativa
 import logging
 import io
 import os
+import time
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import gspread
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
 from pathlib import Path
 
 # ====================================================================
@@ -19,7 +19,7 @@ TOKEN_FILE = DIRETORIO_ATUAL / 'token.json'
 CREDENTIALS_FILE = DIRETORIO_ATUAL / 'credentials.json'
 
 # ATENÇÃO: Verifique se este ID é de uma pasta dentro do "Meu Drive" da conta 'prevperdassheets@gmail.com'
-DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE ESTE ID
+DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE SE ESTE É O ID DA PASTA CORRETA
 SPREADSHEET_ID = "1F7J2HTY-1PefF9UTajvQbq8jgAdEc1vrU0TeR3np8cI"
 SHEET_NAME = "Base"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -58,21 +58,30 @@ except Exception as e:
 # ====================================================================
 
 def _get_drive_link_by_filename(file_name):
-    """Busca o arquivo mais recente com o nome especificado e retorna seu link."""
+    """Busca o arquivo mais recente com o nome especificado e retorna seu link.
+       Inclui lógica de retentativa para aguardar o Google processar o arquivo.
+    """
     if not file_name: return ""
-    try:
-        query = f"'{DRIVE_FOLDER_ID}' in parents and name='{file_name}' and trashed=false"
-        response = drive_service.files().list(q=query, spaces='drive', fields='files(id)', orderBy='createdTime desc', pageSize=1).execute()
-        files = response.get('files', [])
-        if not files:
-            logging.warning(f"Arquivo '{file_name}' não encontrado no Drive.")
-            return "ARQUIVO_NAO_ENCONTRADO"
-        
-        file_id = files[0].get('id')
-        return f'https://drive.google.com/uc?export=view&id={file_id}'
-    except Exception as e:
-        logging.error(f"Erro ao buscar link do arquivo '{file_name}': {e}")
-        return "ERRO_AO_BUSCAR_LINK"
+    
+    for attempt in range(3):
+        try:
+            query = f"'{DRIVE_FOLDER_ID}' in parents and name='{file_name}' and trashed=false"
+            response = drive_service.files().list(q=query, spaces='drive', fields='files(id)', orderBy='createdTime desc', pageSize=1).execute()
+            files = response.get('files', [])
+            
+            if files:
+                file_id = files[0].get('id')
+                return f'https://drive.google.com/uc?export=view&id={file_id}'
+            
+            logging.warning(f"Tentativa {attempt + 1}: Arquivo '{file_name}' ainda não visível. Aguardando 2 segundos...")
+            time.sleep(2)
+
+        except Exception as e:
+            logging.error(f"Erro ao buscar link do arquivo '{file_name}' na tentativa {attempt + 1}: {e}")
+            time.sleep(2)
+            
+    logging.error(f"Arquivo '{file_name}' não encontrado no Drive após múltiplas tentativas.")
+    return "ARQUIVO_NAO_ENCONTRADO_APOS_TENTATIVAS"
 
 @app.route('/')
 def index():

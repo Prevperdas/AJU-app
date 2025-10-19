@@ -67,8 +67,7 @@
     </div>
 
     <script>
-    const BACKEND_URL = 'https://aju-app.onrender.com'; // <-- 🚨 VERIFIQUE SE ESTE É O SEU LINK CORRETO DO RENDER
-    let isSubmitting = false; // Variável global para evitar envios duplos
+    const BACKEND_URL = 'https://aju-app.onrender.com'; // <-- 🚨 ATENÇÃO: COLOQUE SEU LINK DO RENDER AQUI
 
     // ========================================================================
     // LÓGICA DE UPLOAD OTIMIZADA
@@ -111,10 +110,6 @@
             throw error;
         }
     }
-
-    // ========================================================================
-    // SEÇÃO 1: REGISTRO DE SAÍDA
-    // ========================================================================
 
     async function handleSaida(form) {
         if (isSubmitting) return;
@@ -175,338 +170,294 @@
 
                 const response = await fetch(`${BACKEND_URL}/registrar_saida`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }, // <-- CORRIGIDO
-                    body: JSON.stringify(formObject)                  // <-- CORRIGIDO
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formObject),
                 });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.mensagem || 'Ocorreu um erro no servidor.');
 
-                const data = await response.json(); // <-- CORRIGIDO
+                msgDiv.className = 'mensagem sucesso';
+                msgDiv.innerHTML = '<strong>' + data.mensagem + '</strong>';
+                form.reset();
+                document.querySelectorAll('.file-name').forEach(el => el.textContent = 'Nenhum arquivo selecionado');
+                toggleBiTremFields();
 
-                if (response.ok) { // <-- CORRIGIDO
-                    msgDiv.className = 'mensagem sucesso';
-                    msgDiv.innerHTML = `<strong>${data.mensagem}</strong>`;
-                    form.reset();
-                    form.querySelectorAll('.file-name').forEach(el => el.textContent = 'Nenhum arquivo selecionado');
-                    form.querySelectorAll('.input-file-label').forEach(el => el.classList.remove('error-highlight'));
-                    form.querySelectorAll('.form-group').forEach(el => el.classList.remove('error-highlight'));
-                    toggleBiTremFields(); // Resetar campos bi-trem
-                } else {
-                    throw new Error(data.mensagem || 'Erro desconhecido ao registrar.');
-                }
             } catch (error) {
                 msgDiv.className = 'mensagem erro';
-                msgDiv.innerHTML = `<strong>Erro: ${error.message}</strong>`;
-                console.error('Erro em handleSaida:', error);
+                msgDiv.innerHTML = '<strong>Erro: ' + error.message + '</strong>';
             } finally {
-                isSubmitting = false;
                 btn.disabled = false;
+                isSubmitting = false;
             }
         });
-    }
-    
-    // ========================================================================
-    // SEÇÃO 2: CONFERÊNCIA DE RECEBIMENTO
-    // ========================================================================
+    };
 
-    async function buscarConferencia() {
+    async function finalizarConferencia(form) {
         if (isSubmitting) return;
-        const btn = document.getElementById('btnBusca');
-        const msgDiv = document.getElementById('recebimentoResultado');
-        const isBiTrem = document.getElementById('isBiTremBusca').checked;
         
-        let lacre_busca;
-        if (isBiTrem) {
-            const l1 = document.getElementById('searchLacreCarreta1').value.trim();
-            const l2 = document.getElementById('searchLacreCarreta2').value.trim();
-            if (!l1 || !l2) {
-                showCustomAlert("Para Bi-Trem, ambos os lacres devem ser preenchidos.");
-                return;
-            }
-            lacre_busca = `${l1} / ${l2}`;
-        } else {
-            lacre_busca = document.getElementById('searchLacreCarreta').value.trim();
-            if (!lacre_busca) {
-                showCustomAlert("Por favor, digite o número do lacre.");
-                return;
-            }
-        }
-
-        isSubmitting = true;
-        btn.disabled = true;
-        msgDiv.innerHTML = `<div class="mensagem info"><strong>Buscando dados...</strong></div>`;
-
-        try {
-            const response = await fetch(`${BACKEND_URL}/buscar_recebimento`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lacreCarretaBusca: lacre_busca })
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                exibirResultados(data.resultados[0]);
-            } else {
-                throw new Error(data.erro || 'Erro ao buscar.');
-            }
-        } catch (error) {
-            msgDiv.innerHTML = `<div class="mensagem erro"><strong>Erro: ${error.message}</strong></div>`;
-            console.error('Erro em buscarConferencia:', error);
-        } finally {
-            isSubmitting = false;
-            btn.disabled = false;
-        }
-    }
-
-    function exibirResultados(resultado) {
-        const container = document.getElementById('recebimentoResultado');
-        container.innerHTML = `
-            <div class="resultado-conferencia">
-                <h3>Dados da Saída</h3>
-                <div class="lacre-display">Lacre: ${resultado.Lacre_Carreta}</div>
-                <div class="info-card">
-                    <div class="info-item"><span class="info-label">Data/Hora Saída</span><span class="info-value">${resultado.Data}</span></div>
-                    <div class="info-item"><span class="info-label">Vigilante</span><span class="info-value">${resultado.Vigilante}</span></div>
-                    <div class="info-item"><span class="info-label">Origem</span><span class="info-value">${resultado.Origem}</span></div>
-                    <div class="info-item"><span class="info-label">Destino</span><span class="info-value">${resultado.Destino}</span></div>
-                    <div class="info-item"><span class="info-label">Transportadora</span><span class="info-value">${resultado.Transportadora}</span></div>
-                    <div class="info-item"><span class="info-label">Motorista</span><span class="info-value">${resultado.Motorista}</span></div>
-                    <div class="info-item"><span class="info-label">Placa Cavalo</span><span class="info-value">${resultado.Placa_Cavalo}</span></div>
-                    <div class="info-item"><span class="info-label">Placa Carreta</span><span class="info-value">${resultado.Placa_Carreta}</span></div>
-                    <div class="info-item"><span class="info-label">Lacre VOID</span><span class="info-value">${resultado.Lacre_Void}</span></div>
-                </div>
-                <h4>Anexos da Saída</h4>
-                <div class="anexos-container">
-                    <a href="${resultado.Foto_Carreta_Saida}" target="_blank" class="anexo-item">Foto da Carreta</a>
-                    <a href="${resultado.Foto_Registro_Saida}" target="_blank" class="anexo-item">Foto do Registro</a>
-                    <a href="${resultado.Foto_Lacre_Saida}" target="_blank" class="anexo-item">Foto do Lacre</a>
-                </div>
-                <hr class="divisor">
-                <h4>Formulário de Conferência</h4>
-                <form id="recebimentoForm" onsubmit="event.preventDefault(); handleFinalizar(this, ${resultado.rowIndex});">
-                    <div id="lacre-violado-group" class="form-group">
-                        <label>1. O Lacre VOID estava violado? *</label>
-                        <div class="radio-options">
-                            <span class="radio-option-item"><input type="radio" id="lacreNao" name="lacreViolado" value="NÃO" required><label for="lacreNao">NÃO</label></span>
-                            <span class="radio-option-item"><input type="radio" id="lacreSim" name="lacreViolado" value="SIM"><label for="lacreSim">SIM</label></span>
-                        </div>
-                    </div>
-                    <div id="info-procedem-group" class="form-group">
-                        <label>2. As informações procedem? *</label>
-                        <div class="radio-options">
-                            <span class="radio-option-item"><input type="radio" id="infoSim" name="informacoesProcedem" value="SIM" required><label for="infoSim">SIM</label></span>
-                            <span class="radio-option-item"><input type="radio" id="infoNao" name="informacoesProcedem" value="NÃO"><label for="infoNao">NÃO</label></span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="fotoStatus" class="input-file-label" data-default-text="Anexar Foto do Status da Carga *">Anexar Foto do Status da Carga *</label>
-                        <input type="file" id="fotoStatus" name="fileStatus" style="display:none;" required onchange="updateFileName(this)">
-                        <div class="file-name">Nenhum arquivo selecionado</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="videoAbertura" class="input-file-label" data-default-text="Anexar Vídeo da Abertura *">Anexar Vídeo da Abertura *</label>
-                        <input type="file" id="videoAbertura" name="fileVideoAbertura" accept="video/*" style="display:none;" required onchange="updateFileName(this)">
-                        <div class="file-name">Nenhum arquivo selecionado</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="fotoLacreStatus" class="input-file-label" data-default-text="Anexar Foto do Lacre (Status) *">Anexar Foto do Lacre (Status) *</label>
-                        <input type="file" id="fotoLacreStatus" name="fileLacreStatus" style="display:none;" required onchange="updateFileName(this)">
-                        <div class="file-name">Nenhum arquivo selecionado</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="observacoes">3. Observações (Obrigatório se "NÃO")</label>
-                        <textarea id="observacoes" name="observacoes" rows="4" placeholder="Descreva qualquer divergência..."></textarea>
-                    </div>
-                    <button type="submit" id="submitBtnFinalizar" class="btn">Finalizar Conferência</button>
-                    <div id="recebimentoMensagem" class="mensagem"></div>
-                </form>
-            </div>
-        `;
-    }
-
-    async function handleFinalizar(form, rowIndex) {
-        if (isSubmitting) return;
-
-        // 1. Validação
         let errors = [], elementsToHighlight = [];
         form.querySelectorAll('.error-highlight').forEach(el => el.classList.remove('error-highlight'));
-
-        const lacreViolado = form.querySelector('input[name="lacreViolado"]:checked');
-        const infoProcedem = form.querySelector('input[name="informacoesProcedem"]:checked');
-
-        if (!lacreViolado) {
-            errors.push("Responda se o lacre VOID foi violado.");
-            elementsToHighlight.push(form.querySelector('#lacre-violado-group'));
-        }
-        if (!infoProcedem) {
-            errors.push("Responda se as informações procedem.");
-            elementsToHighlight.push(form.querySelector('#info-procedem-group'));
-        }
-
+        form.querySelectorAll('input[type="radio"][required]').forEach(input => {
+            const group = form.querySelectorAll(`input[name="${input.name}"]`);
+            if (![...group].some(r => r.checked)) {
+                elementsToHighlight.push(input.closest('.form-group'));
+                if (!errors.includes("Selecione as opções obrigatórias (*).")) { errors.push("Selecione as opções obrigatórias (*)."); }
+            }
+        });
         form.querySelectorAll('input[type="file"][required]').forEach(input => {
             if (input.files.length === 0) {
                 elementsToHighlight.push(form.querySelector(`label[for="${input.id}"]`));
-                if (!errors.includes("Anexe os arquivos obrigatórios.")) {
-                    errors.push("Anexe os arquivos obrigatórios (Status, Vídeo, Lacre).");
-                }
+                if (!errors.includes("Anexe os arquivos obrigatórios.")) { errors.push("Anexe os arquivos obrigatórios."); }
             }
         });
-        
-        // Validação de observações
-        if ((lacreViolado && lacreViolado.value === 'SIM') || (infoProcedem && infoProcedem.value === 'NÃO')) {
-            if (!form.observacoes.value.trim()) {
-                errors.push("Observações são obrigatórias caso o lacre esteja violado ou as informações não procedam.");
-                elementsToHighlight.push(form.querySelector('.form-group textarea').closest('.form-group'));
-            }
+        const lacreVioladoChecked = form.querySelector('input[name="lacreViolado"]:checked');
+        const infoProcedemChecked = form.querySelector('input[name="informacoesProcedem"]:checked');
+        const observacoesTextarea = form.querySelector('#observacoes');
+        if ((lacreVioladoChecked?.value === 'Sim' || infoProcedemChecked?.value === 'Não') && !observacoesTextarea.value.trim()) {
+            elementsToHighlight.push(observacoesTextarea.closest('.form-group'));
+            const errorMsg = "As Observações são obrigatórias em caso de lacre violado ou informações que não procedem.";
+            if (!errors.includes(errorMsg)) { errors.push(errorMsg); }
         }
-
         if (errors.length > 0) {
             elementsToHighlight.forEach(el => el.classList.add('error-highlight'));
             showCustomAlert("Atenção:\n\n- " + errors.join("\n- "));
             return;
         }
 
-        // 2. Confirmação
         showCustomConfirm('Confirmar a finalização da conferência?', async () => {
-            const btn = document.getElementById('submitBtnFinalizar');
-            const msgDiv = document.getElementById('recebimentoMensagem');
+            const btn = document.getElementById('btnFinalizar');
+            const msgDiv = document.getElementById('finalizandoMsg');
+            if (foundRowIndex === null) return;
+
             isSubmitting = true;
             btn.disabled = true;
             msgDiv.className = 'mensagem info';
-            msgDiv.innerHTML = '<strong>Iniciando envio dos arquivos...</strong>';
+            msgDiv.innerHTML = '<strong>Iniciando envio...</strong>';
             msgDiv.style.display = 'block';
 
             try {
-                // 3. Upload de Arquivos
                 const filesToUpload = [
                     form.fileStatus.files[0],
+                    form.fileLacreStatus.files[0],
                     form.fileVideoAbertura.files[0],
-                    form.fileLacreStatus.files[0]
                 ].filter(Boolean);
 
                 const uploadPromises = filesToUpload.map(file => compressAndUploadDirectly(file, msgDiv));
                 await Promise.all(uploadPromises);
 
-                msgDiv.innerHTML = '<strong>Arquivos enviados! Finalizando registro...</strong>';
+                msgDiv.innerHTML = '<strong>Arquivos enviados! Registrando dados...</strong>';
 
-                // 4. Preparar dados do formulário
-                const formObject = {
-                    rowIndex: rowIndex,
-                    lacreViolado: lacreViolado.value,
-                    informacoesProcedem: infoProcedem.value,
-                    observacoes: form.observacoes.value,
-                    fileStatus: [{ name: form.fileStatus.files[0]?.name }],
-                    fileVideoAbertura: [{ name: form.fileVideoAbertura.files[0]?.name }],
-                    fileLacreStatus: [{ name: form.fileLacreStatus.files[0]?.name }],
-                };
+                const formData = new FormData(form);
+                const formObject = { rowIndex: foundRowIndex };
+                for (const [key, value] of formData.entries()) {
+                    if (!(value instanceof File)) {
+                        formObject[key] = value;
+                    }
+                }
+                formObject.fileStatus = [{ name: form.fileStatus.files[0]?.name }];
+                formObject.fileLacreStatus = [{ name: form.fileLacreStatus.files[0]?.name }];
+                formObject.fileVideoAbertura = [{ name: form.fileVideoAbertura.files[0]?.name }];
 
-                // 5. Enviar para o backend
                 const response = await fetch(`${BACKEND_URL}/finalizar_recebimento`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formObject)
+                    body: JSON.stringify(formObject),
                 });
-
                 const data = await response.json();
+                if (!response.ok) throw new Error(data.mensagem || 'Falha na atualização.');
 
-                if (response.ok) {
-                    msgDiv.className = 'mensagem sucesso';
-                    msgDiv.innerHTML = `<strong>${data.mensagem}</strong>`;
-                    document.getElementById('recebimentoResultado').innerHTML = ''; // Limpa os resultados
-                    document.getElementById('buscaForm').reset(); // Limpa a busca
-                    toggleBiTremSearchFields(); // Reseta os campos de busca bi-trem
-                } else {
-                    throw new Error(data.mensagem || 'Erro desconhecido ao finalizar.');
-                }
+                showCustomAlert(data.mensagem);
+                document.getElementById('recebimentoResultado').innerHTML = `<div class="mensagem sucesso"><strong>Processo finalizado!</strong></div>`;
+                document.getElementById('buscaForm').reset();
+                toggleBiTremSearchFields();
 
             } catch (error) {
+                showCustomAlert("Falha no processo. Detalhe: " + error.message);
                 msgDiv.className = 'mensagem erro';
-                msgDiv.innerHTML = `<strong>Erro: ${error.message}</strong>`;
-                console.error('Erro em handleFinalizar:', error);
+                msgDiv.innerHTML = `<strong>${error.message}</strong>`;
             } finally {
-                isSubmitting = false;
                 btn.disabled = false;
+                isSubmitting = false;
             }
         });
-    }
+    };
     
     // ========================================================================
-    // FUNÇÕES AUXILIARES (UI)
+    // FUNÇÕES AUXILIARES (COMPLETAS)
     // ========================================================================
+    
+    let isSubmitting = false;
+    let foundRowIndex = null;
+    const modal = document.getElementById('customModal');
+    const modalMessage = document.getElementById('modalMessage');
+    const confirmActions = document.getElementById('confirmActions');
+    const alertActions = document.getElementById('alertActions');
+    const confirmBtn = document.getElementById('modalConfirmBtn');
+    const cancelBtn = document.getElementById('modalCancelBtn');
+    const okBtn = document.getElementById('modalOkBtn');
+    let onConfirmCallback = null;
 
-    function showSection(sectionId, element) {
-        document.querySelectorAll('.form-section').forEach(section => section.style.display = 'none');
+    function showCustomConfirm(message, callback) { modalMessage.textContent = message; onConfirmCallback = callback; confirmActions.style.display = 'flex'; alertActions.style.display = 'none'; modal.classList.add('show'); }
+    function showCustomAlert(message) { modalMessage.textContent = message; confirmActions.style.display = 'none'; alertActions.style.display = 'flex'; modal.classList.add('show'); }
+    confirmBtn.addEventListener('click', () => { if (typeof onConfirmCallback === 'function') { onConfirmCallback(); } modal.classList.remove('show'); });
+    cancelBtn.addEventListener('click', () => { onConfirmCallback = null; modal.classList.remove('show'); });
+    okBtn.addEventListener('click', () => modal.classList.remove('show'));
+
+    function showSection(sectionId, clickedButton) {
+        document.querySelectorAll('.form-section').forEach(section => { section.style.display = 'none'; });
         document.getElementById(sectionId).style.display = 'block';
-        document.querySelectorAll('.nav-button').forEach(button => button.classList.remove('active'));
-        element.classList.add('active');
-        document.getElementById('recebimentoResultado').innerHTML = '';
-        document.getElementById('saidaMensagem').style.display = 'none';
+        document.querySelectorAll('.nav-button').forEach(btn => { btn.classList.remove('active'); });
+        clickedButton.classList.add('active');
+        if (document.getElementById('recebimentoResultado')) { document.getElementById('recebimentoResultado').innerHTML = ''; }
+        if (document.getElementById('buscaForm')) { document.getElementById('buscaForm').reset(); }
+        toggleBiTremSearchFields();
     }
 
     function updateFileName(input) {
-        const fileLabel = input.closest('.form-group').querySelector('.input-file-label');
-        const fileNameDiv = input.closest('.form-group').querySelector('.file-name');
-        if (input.files.length > 0) {
-            fileNameDiv.textContent = input.files[0].name;
-            fileLabel.classList.remove('error-highlight');
-        } else {
-            fileNameDiv.textContent = 'Nenhum arquivo selecionado';
+        const displayDiv = input.nextElementSibling;
+        const label = input.previousElementSibling;
+        if (label && label.classList.contains('error-highlight')) { label.classList.remove('error-highlight'); }
+        if (displayDiv && displayDiv.classList.contains('file-name')) {
+            if (input.files && input.files.length > 0) {
+                displayDiv.textContent = input.files[0].name;
+            } else {
+                displayDiv.textContent = 'Nenhum arquivo selecionado';
+            }
         }
     }
 
-    function toggleBiTremFields() {
-        const isChecked = document.getElementById('isBiTrem').checked;
-        document.getElementById('placa-normal-container').classList.toggle('hidden', isChecked);
-        document.getElementById('placa-bitrem-container').classList.toggle('hidden', !isChecked);
-        document.getElementById('lacre-normal-container').classList.toggle('hidden', isChecked);
-        document.getElementById('lacre-bitrem-container').classList.toggle('hidden', !isChecked);
-
-        // Alternar 'required'
-        document.getElementById('placaCarreta').required = !isChecked;
-        document.getElementById('lacreCarreta').required = !isChecked;
-        document.getElementById('placaCarreta1').required = isChecked;
-        document.getElementById('placaCarreta2').required = isChecked;
-        document.getElementById('lacreCarreta1').required = isChecked;
-        document.getElementById('lacreCarreta2').required = isChecked;
+    window.onload = function() { showSection('saida', document.querySelector('.nav-button.active')); };
+    
+    function checkFileSize(input, maxSizeMB) {
+        if (input.files && input.files.length > 0) {
+            const file = input.files[0];
+            const fileSizeMB = file.size / 1024 / 1024;
+            if (file.type.includes('video') && fileSizeMB > maxSizeMB) {
+                showCustomAlert(`Atenção:\n\nO vídeo selecionado tem ${fileSizeMB.toFixed(1)} MB. \n\nO envio será rápido, mas vídeos muito grandes podem ocupar mais espaço no Drive.`);
+            }
+        }
     }
     
+    function toggleBiTremFields() {
+        const isBiTrem = document.getElementById('isBiTrem').checked;
+        document.getElementById('placa-normal-container').classList.toggle('hidden', isBiTrem);
+        document.getElementById('placa-bitrem-container').classList.toggle('hidden', !isBiTrem);
+        document.getElementById('placaCarreta').required = !isBiTrem;
+        document.getElementById('placaCarreta1').required = isBiTrem;
+        document.getElementById('placaCarreta2').required = isBiTrem;
+        document.getElementById('lacre-normal-container').classList.toggle('hidden', isBiTrem);
+        document.getElementById('lacre-bitrem-container').classList.toggle('hidden', !isBiTrem);
+        document.getElementById('lacreCarreta').required = !isBiTrem;
+        document.getElementById('lacreCarreta1').required = isBiTrem;
+        document.getElementById('lacreCarreta2').required = isBiTrem;
+    }
+
     function toggleBiTremSearchFields() {
-        const isChecked = document.getElementById('isBiTremBusca').checked;
-        document.getElementById('lacre-busca-normal-container').classList.toggle('hidden', isChecked);
-        document.getElementById('lacre-busca-bitrem-container').classList.toggle('hidden', !isChecked);
-        
-        // Alternar 'required'
-        document.getElementById('searchLacreCarreta').required = !isChecked;
-        // Os campos de busca bi-trem são validados na própria função JS
+        const isBiTrem = document.getElementById('isBiTremBusca').checked;
+        document.getElementById('lacre-busca-normal-container').classList.toggle('hidden', isBiTrem);
+        document.getElementById('lacre-busca-bitrem-container').classList.toggle('hidden', !isBiTrem);
+        document.getElementById('searchLacreCarreta').required = !isBiTrem;
+        document.getElementById('searchLacreCarreta1').required = isBiTrem;
+        document.getElementById('searchLacreCarreta2').required = isBiTrem;
     }
+    
+    function buscarConferencia() {
+        const isBiTrem = document.getElementById('isBiTremBusca').checked;
+        let lacreCarreta = "";
+        if (isBiTrem) {
+            const lacre1 = document.getElementById('searchLacreCarreta1').value.trim();
+            const lacre2 = document.getElementById('searchLacreCarreta2').value.trim();
+            if (!lacre1 || !lacre2) { return showCustomAlert("Para busca Bi-Trem, ambos os campos de lacre devem ser preenchidos."); }
+            lacreCarreta = `${lacre1} / ${lacre2}`;
+        } else {
+            lacreCarreta = document.getElementById('searchLacreCarreta').value.trim();
+            if (!lacreCarreta) { return showCustomAlert("O campo de busca do lacre deve ser preenchido."); }
+        }
+        const resultadoDiv = document.getElementById('recebimentoResultado');
+        const btnBusca = document.getElementById('btnBusca');
+        btnBusca.disabled = true;
+        resultadoDiv.innerHTML = `<div class="mensagem info" style="display:block;">Buscando pendência pelo lacre ${lacreCarreta}...</div>`;
 
-    function showCustomAlert(message) {
-        const modal = document.getElementById('customModal');
-        document.getElementById('modalMessage').textContent = message;
-        document.getElementById('confirmActions').style.display = 'none';
-        document.getElementById('alertActions').style.display = 'flex';
-        modal.classList.add('show');
-        document.getElementById('modalOkBtn').onclick = () => modal.classList.remove('show');
-    }
-
-    function showCustomConfirm(message, onConfirm) {
-        const modal = document.getElementById('customModal');
-        document.getElementById('modalMessage').textContent = message;
-        document.getElementById('confirmActions').style.display = 'flex';
-        document.getElementById('alertActions').style.display = 'none';
-        modal.classList.add('show');
-        document.getElementById('modalConfirmBtn').onclick = () => {
-            modal.classList.remove('show');
-            onConfirm();
-        };
-        document.getElementById('modalCancelBtn').onclick = () => modal.classList.remove('show');
-    }
-
-    // Inicializar os labels dos arquivos
-    document.querySelectorAll('.input-file-label').forEach(label => {
-        label.addEventListener('click', () => {
-            document.getElementById(label.getAttribute('for')).click();
+        fetch(`${BACKEND_URL}/buscar_recebimento`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lacreCarretaBusca: lacreCarreta })
+        })
+        .then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            if (!ok) { throw new Error(data.erro || 'Erro ao buscar dados.'); }
+            const item = data.resultados[0];
+            foundRowIndex = item.rowIndex;
+            resultadoDiv.innerHTML = `
+                <div class="resultado-conferencia">
+                    <h3>Pendência Encontrada</h3>
+                    <div class="info-card">
+                        <div class="info-item"><span class="info-label">Registro (Saída)</span><span class="info-value">${item.Data}</span></div>
+                        <div class="info-item"><span class="info-label">Vigilante</span><span class="info-value">${item.Vigilante}</span></div>
+                        <div class="info-item"><span class="info-label">Rota</span><span class="info-value">${item.Origem} → ${item.Destino}</span></div>
+                        <div class="info-item"><span class="info-label">Transportadora</span><span class="info-value">${item.Transportadora}</span></div>
+                        <div class="info-item"><span class="info-label">Motorista</span><span class="info-value">${item.Motorista}</span></div>
+                        <div class="info-item"><span class="info-label">Placa Carreta</span><span class="info-value">${item.Placa_Carreta}</span></div>
+                        <div class="info-item"><span class="info-label">Placa Cavalo</span><span class="info-value">${item.Placa_Cavalo}</span></div>
+                        <div class="info-item"><span class="info-label">Lacre da Carreta</span><span class="info-value">${item.Lacre_Carreta}</span></div>
+                        <div class="info-item"><span class="info-label">Lacre VOID</span><span class="info-value">${item.Lacre_Void}</span></div>
+                    </div>
+                    <div class="lacre-display">Conferir Lacre VOID: ${item.Lacre_Void}</div>
+                    <h4>Anexos da Saída</h4>
+                    <div class="anexos-container">
+                        <a href="${item.Foto_Carreta_Saida}" target="_blank" class="anexo-item"><span>VER FOTO DA CARRETA</span></a>
+                        <a href="${item.Foto_Registro_Saida}" target="_blank" class="anexo-item"><span>VER FOTO DO REGISTRO</span></a>
+                        <a href="${item.Foto_Lacre_Saida}" target="_blank" class="anexo-item"><span>VER FOTO DO LACRE</span></a>
+                    </div>
+                    <hr class="divisor">
+                    <form id="conferenciaForm" onsubmit="event.preventDefault(); finalizarConferencia(this);">
+                        <input type="hidden" name="rowIndex" value="${item.rowIndex}">
+                        <div class="form-group">
+                            <label>Lacre VOID (${item.Lacre_Void}) está violado? *</label>
+                            <div class="radio-options">
+                                <div class="radio-option-item"><input type="radio" id="lacreSim" name="lacreViolado" value="Sim" required><label for="lacreSim"> Sim</label></div>
+                                <div class="radio-option-item"><input type="radio" id="lacreNao" name="lacreViolado" value="Não"><label for="lacreNao"> Não</label></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="fotoLacreStatus" class="input-file-label" data-default-text="Anexar Foto do Lacre VOID *">Anexar Foto do Lacre VOID *</label>
+                            <input type="file" id="fotoLacreStatus" name="fileLacreStatus" style="display:none;" required onchange="updateFileName(this)">
+                            <div class="file-name">Nenhum arquivo selecionado</div>
+                        </div>
+                        <hr class="divisor">
+                        <div class="form-group">
+                            <label>As informações (placa, motorista, etc) estão corretas? *</label>
+                            <div class="radio-options">
+                                <div class="radio-option-item"><input type="radio" id="infoProcSim" name="informacoesProcedem" value="Sim" required><label for="infoProcSim"> Sim</label></div>
+                                <div class="radio-option-item"><input type="radio" id="infoProcNao" name="informacoesProcedem" value="Não"><label for="infoProcNao"> Não</label></div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="observacoes">Observações:</label>
+                            <textarea id="observacoes" name="observacoes" rows="4"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="fotoStatus" class="input-file-label" data-default-text="Anexar Foto da Carreta (Chegada) *">Anexar Foto da Carreta (Chegada) *</label>
+                            <input type="file" id="fotoStatus" name="fileStatus" style="display:none;" required onchange="updateFileName(this)">
+                            <div class="file-name">Nenhum arquivo selecionado</div>
+                        </div>
+                        <div class="form-group">
+                            <label for="videoAbertura" class="input-file-label" data-default-text="Anexar Vídeo (opcional)">Anexar Vídeo (opcional)</label>
+                            <input type="file" id="videoAbertura" name="fileVideoAbertura" style="display:none;" onchange="updateFileName(this); checkFileSize(this, 100);">
+                            <div class="file-name">Nenhum arquivo selecionado</div>
+                        </div>
+                        <button type="submit" id="btnFinalizar" class="btn">Finalizar Conferência</button>
+                        <div id="finalizandoMsg" class="mensagem"></div>
+                    </form>
+                </div>`;
+        })
+        .catch(error => {
+            resultadoDiv.innerHTML = `<div class="mensagem erro" style="display:block;"><strong>${error.message}</strong></div>`;
+        })
+        .finally(() => {
+            btnBusca.disabled = false;
         });
-    });
+    }
     </script>
 </body>
 </html>
