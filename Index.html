@@ -67,7 +67,7 @@
     </div>
 
     <script>
-    const BACKEND_URL = 'https://aju-app.onrender.com/'; // <-- 🚨 ATENÇÃO: VERIFIQUE SE ESTE LINK ESTÁ CORRETO!
+    const BACKEND_URL = 'https://aju-app.onrender.com'; // <-- 🚨 ATENÇÃO: VERIFIQUE SE ESTE LINK ESTÁ CORRETO!
 
     // ========================================================================
     // LÓGICA DE UPLOAD OTIMIZADA (FIRE AND FORGET)
@@ -82,13 +82,14 @@
             .catch(error => { console.error(`Erro de rede no upload em segundo plano do arquivo ${file.name}:`, error); });
     }
 
-    async function getUploadData(file) {
+    async function getUploadData(file, msgDiv) {
         if (!file) return null;
         
         let fileToUpload = file;
         const isImage = file.type.match('image.*');
         
         if (isImage) {
+            msgDiv.innerHTML = `<strong>Comprimindo imagem: ${file.name}...</strong>`;
             const options = { maxSizeMB: 0.8, maxWidthOrHeight: 1280, useWebWorker: true, initialQuality: 0.7 };
             try {
                 fileToUpload = await imageCompression(file, options);
@@ -97,6 +98,7 @@
             }
         }
         
+        msgDiv.innerHTML = `<strong>Obtendo permissão para: ${fileToUpload.name}...</strong>`;
         const response = await fetch(`${BACKEND_URL}/generate_upload_url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -161,7 +163,7 @@
                 ];
 
                 for (const item of filesToProcess) {
-                    const uploadData = await getUploadData(item.file);
+                    const uploadData = await getUploadData(item.file, msgDiv);
                     if (uploadData) {
                         uploadInBackground(uploadData.fileToUpload, uploadData.uploadUrl);
                         formObject[item.key] = { id: uploadData.fileId };
@@ -196,7 +198,35 @@
 
     async function finalizarConferencia(form) {
         if (isSubmitting) return;
-        // ... (Sua validação de formulário de conferência completa vai aqui) ...
+        
+        let errors = [], elementsToHighlight = [];
+        form.querySelectorAll('.error-highlight').forEach(el => el.classList.remove('error-highlight'));
+        form.querySelectorAll('input[type="radio"][required]').forEach(input => {
+            const group = form.querySelectorAll(`input[name="${input.name}"]`);
+            if (![...group].some(r => r.checked)) {
+                elementsToHighlight.push(input.closest('.form-group'));
+                if (!errors.includes("Selecione as opções obrigatórias (*).")) { errors.push("Selecione as opções obrigatórias (*)."); }
+            }
+        });
+        form.querySelectorAll('input[type="file"][required]').forEach(input => {
+            if (input.files.length === 0) {
+                elementsToHighlight.push(form.querySelector(`label[for="${input.id}"]`));
+                if (!errors.includes("Anexe os arquivos obrigatórios.")) { errors.push("Anexe os arquivos obrigatórios."); }
+            }
+        });
+        const lacreVioladoChecked = form.querySelector('input[name="lacreViolado"]:checked');
+        const infoProcedemChecked = form.querySelector('input[name="informacoesProcedem"]:checked');
+        const observacoesTextarea = form.querySelector('#observacoes');
+        if ((lacreVioladoChecked?.value === 'Sim' || infoProcedemChecked?.value === 'Não') && !observacoesTextarea.value.trim()) {
+            elementsToHighlight.push(observacoesTextarea.closest('.form-group'));
+            const errorMsg = "As Observações são obrigatórias em caso de lacre violado ou informações que não procedem.";
+            if (!errors.includes(errorMsg)) { errors.push(errorMsg); }
+        }
+        if (errors.length > 0) {
+            elementsToHighlight.forEach(el => el.classList.add('error-highlight'));
+            showCustomAlert("Atenção:\n\n- " + errors.join("\n- "));
+            return;
+        }
 
         showCustomConfirm('Confirmar a finalização da conferência?', async () => {
             const btn = document.getElementById('btnFinalizar');
@@ -227,7 +257,7 @@
 
                 for (const item of filesToProcess) {
                     if (item.file) { 
-                        const uploadData = await getUploadData(item.file);
+                        const uploadData = await getUploadData(item.file, msgDiv);
                         if (uploadData) {
                             uploadInBackground(uploadData.fileToUpload, uploadData.uploadUrl);
                             formObject[item.key] = { id: uploadData.fileId };
