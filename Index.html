@@ -38,9 +38,9 @@
                     <div id="lacre-bitrem-container" class="hidden"><label>Lacres VBlog (Bi-Trem) *</label><div class="input-group-bitrem"><div><input type="text" id="lacreCarreta1" name="lacreCarreta1" placeholder="Lacre 1"></div><span class="input-divisor">/</span><div><input type="text" id="lacreCarreta2" name="lacreCarreta2" placeholder="Lacre 2"></div></div></div>
                 </div>
                 <div class="form-group"><label for="lacreNumero">Lacre VOID *</label><div class="lacre-group"><span class="lacre-prefix">V</span><input type="text" id="lacreNumero" name="lacreNumero" required placeholder="Apenas números"></div></div>
-                <div class="form-group"><label for="fotoCarretaSaida" class="input-file-label" data-default-text="Anexar Foto da Carreta *">Anexar Foto da Carreta *</label><input type="file" id="fotoCarretaSaida" name="fileCarreta" style="display:none;" accept="image/*" required onchange="updateFileName(this)"><div class="file-name">Nenhum arquivo selecionado</div></div>
-                <div class="form-group"><label for="fotoRegistroSaida" class="input-file-label" data-default-text="Anexar Foto do Registro de Saída *">Anexar Foto do Registro de Saída *</label><input type="file" id="fotoRegistroSaida" name="fileRegistroSaida" style="display:none;" accept="image/*" required onchange="updateFileName(this)"><div class="file-name">Nenhum arquivo selecionado</div></div>
-                <div class="form-group"><label for="fotoLacreSaida" class="input-file-label" data-default-text="Anexar Foto do Lacre *">Anexar Foto do Lacre VOID*</label><input type="file" id="fotoLacreSaida" name="fileLacre" style="display:none;" accept="image/*" required onchange="updateFileName(this)"><div class="file-name">Nenhum arquivo selecionado</div></div>
+                <div class="form-group"><label for="fotoCarretaSaida" class="input-file-label" data-default-text="Anexar Foto da Carreta *">Anexar Foto da Carreta *</label><input type="file" id="fotoCarretaSaida" name="fileCarreta" style="display:none;" accept="image/*" capture="environment" required onchange="updateFileName(this)"><div class="file-name">Nenhum arquivo selecionado</div></div>
+                <div class="form-group"><label for="fotoRegistroSaida" class="input-file-label" data-default-text="Anexar Foto do Registro de Saída *">Anexar Foto do Registro de Saída *</label><input type="file" id="fotoRegistroSaida" name="fileRegistroSaida" style="display:none;" accept="image/*" capture="environment" required onchange="updateFileName(this)"><div class="file-name">Nenhum arquivo selecionado</div></div>
+                <div class="form-group"><label for="fotoLacreSaida" class="input-file-label" data-default-text="Anexar Foto do Lacre *">Anexar Foto do Lacre VOID*</label><input type="file" id="fotoLacreSaida" name="fileLacre" style="display:none;" accept="image/*" capture="environment" required onchange="updateFileName(this)"><div class="file-name">Nenhum arquivo selecionado</div></div>
                 <button type="submit" id="submitBtnSaida" class="btn">Registrar Saída</button>
                 <div id="saidaMensagem" class="mensagem"></div>
             </form>
@@ -67,13 +67,12 @@
     </div>
 
     <script>
-    const BACKEND_URL = 'https://aju-app.onrender.com'; // <-- 🚨 ATENÇÃO: VERIFIQUE ESTE LINK!
+    const BACKEND_URL = 'https://aju-app.onrender.com'; // <-- 🚨 ATENÇÃO: VERIFIQUE SE ESTE LINK ESTÁ CORRETO!
 
     // ========================================================================
     // LÓGICA DE UPLOAD OTIMIZADA (FIRE AND FORGET)
     // ========================================================================
     
-    // ESTA FUNÇÃO INICIA O UPLOAD EM SEGUNDO PLANO E NÃO ESPERA ELE TERMINAR
     function uploadInBackground(file, uploadUrl) {
         fetch(uploadUrl, { method: 'PUT', body: file })
             .then(response => {
@@ -118,7 +117,25 @@
     async function handleSaida(form) {
         if (isSubmitting) return;
         
-        // ... (Sua validação de formulário completa vai aqui) ...
+        let errors = [], elementsToHighlight = [];
+        form.querySelectorAll('.error-highlight').forEach(el => el.classList.remove('error-highlight'));
+        form.querySelectorAll('input[type="text"][required], select[required]').forEach(input => {
+            if (!input.closest('.hidden') && !input.value.trim()) {
+                elementsToHighlight.push(input.closest('.form-group'));
+                if (!errors.includes("Preencha todos os campos obrigatórios.")) { errors.push("Preencha todos os campos obrigatórios."); }
+            }
+        });
+        form.querySelectorAll('input[type="file"][required]').forEach(input => {
+            if (input.files.length === 0) {
+                elementsToHighlight.push(form.querySelector(`label[for="${input.id}"]`));
+                if (!errors.includes("Anexe as fotos obrigatórias.")) { errors.push("Anexe as fotos obrigatórias."); }
+            }
+        });
+        if (errors.length > 0) {
+            elementsToHighlight.forEach(el => el.classList.add('error-highlight'));
+            showCustomAlert("Atenção:\n\n- " + errors.join("\n- "));
+            return;
+        }
         
         showCustomConfirm('Confirmar o envio dos dados de saída?', async () => {
             const btn = document.getElementById('submitBtnSaida');
@@ -131,6 +148,7 @@
 
             try {
                 const formObject = {
+                    clientTimestamp: new Date().toISOString(),
                     vigilante: form.vigilante.value, origem: form.origem.value,
                     destino: form.destino.value, transportadora: form.transportadora.value,
                     motorista: form.motorista.value, placaCavalo: form.placaCavalo.value,
@@ -198,7 +216,10 @@
 
             try {
                 const formData = new FormData(form);
-                const formObject = { rowIndex: foundRowIndex };
+                const formObject = { 
+                    rowIndex: foundRowIndex,
+                    clientTimestamp: new Date().toISOString()
+                };
                 for (const [key, value] of formData.entries()) {
                     if (!(value instanceof File)) { formObject[key] = value; }
                 }
@@ -382,7 +403,7 @@
                         </div>
                         <div class="form-group">
                             <label for="fotoLacreStatus" class="input-file-label" data-default-text="Anexar Foto do Lacre VOID *">Anexar Foto do Lacre VOID *</label>
-                            <input type="file" id="fotoLacreStatus" name="fileLacreStatus" style="display:none;" accept="image/*" required onchange="updateFileName(this)">
+                            <input type="file" id="fotoLacreStatus" name="fileLacreStatus" style="display:none;" accept="image/*" capture="environment" required onchange="updateFileName(this)">
                             <div class="file-name">Nenhum arquivo selecionado</div>
                         </div>
                         <hr class="divisor">
@@ -399,7 +420,7 @@
                         </div>
                         <div class="form-group">
                             <label for="fotoStatus" class="input-file-label" data-default-text="Anexar Foto da Carreta (Chegada) *">Anexar Foto da Carreta (Chegada) *</label>
-                            <input type="file" id="fotoStatus" name="fileStatus" style="display:none;" accept="image/*" required onchange="updateFileName(this)">
+                            <input type="file" id="fotoStatus" name="fileStatus" style="display:none;" accept="image/*" capture="environment" required onchange="updateFileName(this)">
                             <div class="file-name">Nenhum arquivo selecionado</div>
                         </div>
                         <div class="form-group">

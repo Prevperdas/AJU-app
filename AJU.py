@@ -1,4 +1,4 @@
-# AJU.py - Versão Final Otimizada e Corrigida
+# AJU.py - Versão Final com Correção de Colunas
 import logging
 import os
 import json
@@ -20,21 +20,29 @@ IS_ON_RENDER = os.environ.get('RENDER') == 'true'
 PASTA_SEGURA = DIRETORIO_ATUAL if IS_ON_RENDER else Path.home() / "Documents"
 TOKEN_FILE = PASTA_SEGURA / 'token.json'
 
-DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE SE ESTE É O ID DA PASTA CORRETA
+DRIVE_FOLDER_ID = "1O5sLCfgQ4pC42KgldkuRJRpZH8nQuSgK"
 SPREADSHEET_ID = "1F7J2HTY-1PefF9UTajvQbq8jgAdEc1vrU0TeR3np8cI"
 SHEET_NAME = "Base"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-
 TZ_SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 
-# Mapeamento de colunas...
-COL_LACRE_CARRETA = 9; COL_STATUS_FINAL = 21; COL_DATE_TIME_FINALIZACAO = 14;
+# ====================================================================
+# MAPEAMENTO DE COLUNAS (CORRIGIDO E REVISADO)
+# ====================================================================
 COL_DATE_TIME = 1; COL_VIGILANTE = 2; COL_ORIGEM = 3; COL_DESTINO = 4;
 COL_TRANSPORTADORA = 5; COL_MOTORISTA = 6; COL_PLACA_CAVALO = 7; COL_PLACA_CARRETA = 8;
-COL_LACRE_VOID = 10; COL_FOTO_CARRETA_SAIDA = 11; COL_FOTO_REGISTRO_SAIDA = 12; 
-COL_FOTO_LACRE_SAIDA = 13; COL_LACRE_VIOLADO = 15; 
-COL_INFORMACOES_PROCEDEM = 16; COL_OBSERVACOES = 17; COL_FOTO_STATUS = 18; 
-COL_VIDEO_ABERTURA = 19; COL_FOTO_LACRE_STATUS = 20;
+COL_LACRE_CARRETA = 9; COL_LACRE_VOID = 10; COL_FOTO_CARRETA_SAIDA = 11;
+COL_FOTO_REGISTRO_SAIDA = 12; COL_FOTO_LACRE_SAIDA = 13;
+
+# --- ESTA É A SEÇÃO CRÍTICA ---
+COL_DATE_TIME_FINALIZACAO = 14; # Coluna N
+COL_LACRE_VIOLADO = 15;         # Coluna O
+COL_INFORMACOES_PROCEDEM = 16;  # Coluna P
+COL_OBSERVACOES = 17;           # Coluna Q
+COL_FOTO_STATUS = 18;           # Coluna R
+COL_VIDEO_ABERTURA = 19;        # Coluna S
+COL_FOTO_LACRE_STATUS = 20;     # Coluna T
+COL_STATUS_FINAL = 21;          # Coluna U
 
 # ====================================================================
 # INICIALIZAÇÃO E AUTENTICAÇÃO
@@ -81,10 +89,8 @@ def index():
 def generate_upload_url():
     try:
         data = request.get_json()
-        file_name = data.get('fileName')
-        mime_type = data.get('mimeType')
-        if not file_name or not mime_type:
-            return jsonify({'erro': 'Nome ou tipo de arquivo ausente.'}), 400
+        file_name, mime_type = data.get('fileName'), data.get('mimeType')
+        if not file_name or not mime_type: return jsonify({'erro': 'Nome ou tipo de arquivo ausente.'}), 400
 
         file_metadata = {'name': file_name, 'parents': [DRIVE_FOLDER_ID]}
         file = drive_service.files().create(body=file_metadata, fields='id').execute()
@@ -93,14 +99,11 @@ def generate_upload_url():
         from googleapiclient.http import build_http
         headers = {"Authorization": f"Bearer {creds.token}"}
         http = build_http()
-        resp, _ = http.request(
-            uri=f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=resumable",
-            method='PATCH', headers=headers
-        )
+        resp, _ = http.request(uri=f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=resumable", method='PATCH', headers=headers)
 
         if 'location' in resp:
             upload_url = resp['location']
-            logging.info(f"URL de upload gerada para o arquivo: {file_name} (ID: {file_id})")
+            logging.info(f"URL de upload gerada para: {file_name} (ID: {file_id})")
             return jsonify({'uploadUrl': upload_url, 'fileId': file_id})
         else:
             raise Exception("Não foi possível obter a URL de upload.")
@@ -140,12 +143,11 @@ def registrar_saida():
         
         return jsonify({'sucesso': True, 'mensagem': f'Saída registrada com sucesso!'})
     except Exception as e:
-        logging.error(f"Erro em registrarSaida: {e}")
-        return jsonify({'sucesso': False, 'mensagem': f"Erro no servidor: {e}"}), 500
+        logging.error(f"ERRO REAL em registrarSaida: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f"Erro no servidor ao registrar na planilha."}), 500
 
 @app.route('/buscar_recebimento', methods=['POST'])
 def buscar_recebimento():
-    # Esta função não precisa de mudanças
     try:
         data = request.get_json()
         lacre_busca = data.get('lacreCarretaBusca', '')
@@ -182,6 +184,8 @@ def finalizar_recebimento():
             form.get('informacoesProcedem'), form.get('observacoes', ""), 
             links_status, links_video, links_lacre_status, "FINALIZADO"
         ]
+        
+        # --- ESTA É A LÓGICA CORRIGIDA ---
         start_cell = gspread.utils.rowcol_to_a1(row_index, COL_DATE_TIME_FINALIZACAO)
         end_cell = gspread.utils.rowcol_to_a1(row_index, COL_STATUS_FINAL)
         
@@ -194,8 +198,8 @@ def finalizar_recebimento():
         
         return jsonify({'sucesso': True, 'mensagem': "Conferência finalizada com sucesso!"})
     except Exception as e:
-        logging.error(f"Erro em finalizarRecebimento: {e}")
-        return jsonify({'sucesso': False, 'mensagem': f"Erro no servidor: {e}"}), 500
+        logging.error(f"ERRO REAL em finalizarRecebimento: {e}")
+        return jsonify({'sucesso': False, 'mensagem': f"Erro no servidor ao finalizar na planilha."}), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
