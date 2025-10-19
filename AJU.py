@@ -3,6 +3,7 @@ import logging
 import os
 import json
 import threading
+import pytz
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -23,6 +24,8 @@ DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" # <-- VERIFIQUE SE ESTE É
 SPREADSHEET_ID = "1F7J2HTY-1PefF9UTajvQbq8jgAdEc1vrU0TeR3np8cI"
 SHEET_NAME = "Base"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+
+TZ_SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 
 # Mapeamento de colunas...
 COL_LACRE_CARRETA = 9; COL_STATUS_FINAL = 21; COL_DATE_TIME_FINALIZACAO = 14;
@@ -126,7 +129,7 @@ def registrar_saida():
             else: placa_carreta_completa = form.get('placaCarreta', '').upper().strip()
 
             new_row = [
-                datetime.now().strftime('%d/%m/%Y %H:%M:%S'), form.get('vigilante', '').upper().strip(),
+                datetime.now(TZ_SAO_PAULO).strftime('%d/%m/%Y %H:%M:%S'), form.get('vigilante', '').upper().strip(),
                 form.get('origem', ''), form.get('destino', ''), form.get('transportadora', ''),
                 form.get('motorista', '').upper().strip(), "'" + form.get('placaCavalo', '').upper().strip(),
                 "'" + placa_carreta_completa, "'" + lacre_para_verificar.upper(), "V" + form.get('lacreNumero', '').strip(),
@@ -175,7 +178,7 @@ def finalizar_recebimento():
         links_lacre_status = _get_drive_link_by_id(form.get('fileLacreStatus', {}).get('id'))
 
         values_to_update = [
-            datetime.now().strftime('%d/%m/%Y %H:%M:%S'), form.get('lacreViolado'), 
+            datetime.now(TZ_SAO_PAULO).strftime('%d/%m/%Y %H:%M:%S'), form.get('lacreViolado'), 
             form.get('informacoesProcedem'), form.get('observacoes', ""), 
             links_status, links_video, links_lacre_status, "FINALIZADO"
         ]
