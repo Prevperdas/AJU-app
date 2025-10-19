@@ -1,0 +1,9 @@
+ex:
+g:
+cd "G:\Drives compartilhados\KPI\App"
+
+git add .
+
+git commit -m "Finaliza configuração: aponta URL do backend para produção"
+
+git push
