@@ -67,7 +67,7 @@
     </div>
 
     <script>
-    const BACKEND_URL = 'https://aju-app.onrender.com'; // <-- 🚨 ATENÇÃO: VERIFIQUE SE ESTE LINK ESTÁ CORRETO!
+    const BACKEND_URL = 'https://aju-app.onrender.com/'; // <-- 🚨 ATENÇÃO: VERIFIQUE SE ESTE LINK ESTÁ CORRETO!
 
     // ========================================================================
     // LÓGICA DE UPLOAD OTIMIZADA (FIRE AND FORGET)
@@ -76,15 +76,10 @@
     function uploadInBackground(file, uploadUrl) {
         fetch(uploadUrl, { method: 'PUT', body: file })
             .then(response => {
-                if (!response.ok) {
-                    console.error(`Falha no upload em segundo plano do arquivo ${file.name}. Status: ${response.status}`);
-                } else {
-                    console.log(`Upload em segundo plano do arquivo ${file.name} concluído com sucesso.`);
-                }
+                if (!response.ok) { console.error(`Falha no upload em segundo plano do arquivo ${file.name}. Status: ${response.status}`); } 
+                else { console.log(`Upload em segundo plano do arquivo ${file.name} concluído com sucesso.`); }
             })
-            .catch(error => {
-                console.error(`Erro de rede no upload em segundo plano do arquivo ${file.name}:`, error);
-            });
+            .catch(error => { console.error(`Erro de rede no upload em segundo plano do arquivo ${file.name}:`, error); });
     }
 
     async function getUploadData(file) {

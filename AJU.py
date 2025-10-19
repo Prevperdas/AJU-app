@@ -1,4 +1,4 @@
-# AJU.py - Versão Final com Correção de Colunas
+# AJU.py - Versão Final com Todas as Correções
 import logging
 import os
 import json
@@ -20,29 +20,22 @@ IS_ON_RENDER = os.environ.get('RENDER') == 'true'
 PASTA_SEGURA = DIRETORIO_ATUAL if IS_ON_RENDER else Path.home() / "Documents"
 TOKEN_FILE = PASTA_SEGURA / 'token.json'
 
-DRIVE_FOLDER_ID = "1O5sLCfgQ4pC42KgldkuRJRpZH8nQuSgK"
+DRIVE_FOLDER_ID = "14vQi2i3Q5mznXvjzGkJywifyxGAXbKFq" 
 SPREADSHEET_ID = "1F7J2HTY-1PefF9UTajvQbq8jgAdEc1vrU0TeR3np8cI"
 SHEET_NAME = "Base"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 TZ_SAO_PAULO = pytz.timezone('America/Sao_Paulo')
 
 # ====================================================================
-# MAPEAMENTO DE COLUNAS (CORRIGIDO E REVISADO)
+# MAPEAMENTO DE COLUNAS (ALINHADO COM SUA PLANILHA)
 # ====================================================================
 COL_DATE_TIME = 1; COL_VIGILANTE = 2; COL_ORIGEM = 3; COL_DESTINO = 4;
 COL_TRANSPORTADORA = 5; COL_MOTORISTA = 6; COL_PLACA_CAVALO = 7; COL_PLACA_CARRETA = 8;
 COL_LACRE_CARRETA = 9; COL_LACRE_VOID = 10; COL_FOTO_CARRETA_SAIDA = 11;
 COL_FOTO_REGISTRO_SAIDA = 12; COL_FOTO_LACRE_SAIDA = 13;
-
-# --- ESTA É A SEÇÃO CRÍTICA ---
-COL_DATE_TIME_FINALIZACAO = 14; # Coluna N
-COL_LACRE_VIOLADO = 15;         # Coluna O
-COL_INFORMACOES_PROCEDEM = 16;  # Coluna P
-COL_OBSERVACOES = 17;           # Coluna Q
-COL_FOTO_STATUS = 18;           # Coluna R
-COL_VIDEO_ABERTURA = 19;        # Coluna S
-COL_FOTO_LACRE_STATUS = 20;     # Coluna T
-COL_STATUS_FINAL = 21;          # Coluna U
+COL_DATE_TIME_FINALIZACAO = 14; COL_LACRE_VIOLADO = 15; 
+COL_INFORMACOES_PROCEDEM = 16; COL_OBSERVACOES = 17; COL_FOTO_STATUS = 18; 
+COL_VIDEO_ABERTURA = 19; COL_FOTO_LACRE_STATUS = 20; COL_STATUS_FINAL = 21;
 
 # ====================================================================
 # INICIALIZAÇÃO E AUTENTICAÇÃO
@@ -56,7 +49,7 @@ creds = None; gspread_client = None; drive_service = None; spreadsheet = None; w
 
 try:
     if not os.path.exists(TOKEN_FILE):
-        raise FileNotFoundError(f"ERRO: 'token.json' não encontrado em '{PASTA_SEGURA}'.")
+        raise FileNotFoundError(f"ERRO: 'token.json' não encontrado em '{PASTA_SEGURA}'. Execute o script de geração de token.")
     creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
     gspread_client = gspread.authorize(creds)
     drive_service = build('drive', 'v3', credentials=creds)
@@ -120,8 +113,10 @@ def registrar_saida():
         else: lacre_para_verificar = form.get('lacreCarreta', '').strip().upper()
         
         with sheet_lock:
-            coluna_lacres = worksheet.col_values(COL_LACRE_CARRETA)
-            if lacre_para_verificar.upper() in [l.upper() for l in coluna_lacres]:
+            all_data = worksheet.get_all_values()
+            next_row_index = len(all_data) + 1
+            coluna_lacres = [row[COL_LACRE_CARRETA - 1] for row in all_data if len(row) >= COL_LACRE_CARRETA]
+            if lacre_para_verificar.upper() in [str(l).upper() for l in coluna_lacres]:
                 return jsonify({'sucesso': False, 'mensagem': f'Erro: O Lacre "{lacre_para_verificar}" já foi registrado.'}), 409
 
             links_carreta = _get_drive_link_by_id(form.get('fileCarreta', {}).get('id'))
@@ -131,15 +126,22 @@ def registrar_saida():
             if form.get('isBiTrem'): placa_carreta_completa = f"{form.get('placaCarreta1', '').upper().strip()} / {form.get('placaCarreta2', '').upper().strip()}"
             else: placa_carreta_completa = form.get('placaCarreta', '').upper().strip()
 
-            new_row = [
-                datetime.now(TZ_SAO_PAULO).strftime('%d/%m/%Y %H:%M:%S'), form.get('vigilante', '').upper().strip(),
+            timestamp_str = form.get('clientTimestamp')
+            dt_utc = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+            dt_sao_paulo = dt_utc.astimezone(TZ_SAO_PAULO)
+            formatted_time = dt_sao_paulo.strftime('%d/%m/%Y %H:%M:%S')
+
+            new_row_values = [
+                formatted_time, form.get('vigilante', '').upper().strip(),
                 form.get('origem', ''), form.get('destino', ''), form.get('transportadora', ''),
                 form.get('motorista', '').upper().strip(), "'" + form.get('placaCavalo', '').upper().strip(),
                 "'" + placa_carreta_completa, "'" + lacre_para_verificar.upper(), "V" + form.get('lacreNumero', '').strip(),
                 links_carreta, links_registro, links_lacre, '', '', '', '', '', '', '', 'PENDENTE'
             ]
-            worksheet.append_row(new_row, value_input_option='USER_ENTERED')
-            logging.info(f"Nova saída registrada com lacre: {lacre_para_verificar}")
+            
+            range_to_update = f'A{next_row_index}:U{next_row_index}'
+            worksheet.update(range_to_update, [new_row_values], value_input_option='USER_ENTERED')
+            logging.info(f"Nova saída registrada na linha {next_row_index} com lacre: {lacre_para_verificar}")
         
         return jsonify({'sucesso': True, 'mensagem': f'Saída registrada com sucesso!'})
     except Exception as e:
@@ -179,13 +181,17 @@ def finalizar_recebimento():
         links_video = _get_drive_link_by_id(form.get('fileVideoAbertura', {}).get('id'))
         links_lacre_status = _get_drive_link_by_id(form.get('fileLacreStatus', {}).get('id'))
 
+        timestamp_str = form.get('clientTimestamp')
+        dt_utc = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        dt_sao_paulo = dt_utc.astimezone(TZ_SAO_PAULO)
+        formatted_time = dt_sao_paulo.strftime('%d/%m/%Y %H:%M:%S')
+
         values_to_update = [
-            datetime.now(TZ_SAO_PAULO).strftime('%d/%m/%Y %H:%M:%S'), form.get('lacreViolado'), 
-            form.get('informacoesProcedem'), form.get('observacoes', ""), 
+            formatted_time, form.get('lacreViolado', ''), 
+            form.get('informacoesProcedem', ''), form.get('observacoes', ""), 
             links_status, links_video, links_lacre_status, "FINALIZADO"
         ]
         
-        # --- ESTA É A LÓGICA CORRIGIDA ---
         start_cell = gspread.utils.rowcol_to_a1(row_index, COL_DATE_TIME_FINALIZACAO)
         end_cell = gspread.utils.rowcol_to_a1(row_index, COL_STATUS_FINAL)
         
